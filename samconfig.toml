@@ -1,0 +1,42 @@
+# More information about the configuration file can be found here:
+# https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-config.html
+version = 0.1
+
+[default]
+[default.global.parameters]
+stack_name = "bank"
+
+[default.build.parameters]
+cached = true
+parallel = true
+beta_features = true
+
+[default.validate.parameters]
+lint = true
+
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+resolve_s3 = true
+s3_prefix = "bank"
+region = "us-east-1"
+image_repositories = []
+
+[default.package.parameters]
+resolve_s3 = true
+
+[default.sync.parameters]
+watch = true
+beta_features = true
+
+[default.local_start_api.parameters]
+warm_containers = "EAGER"
+invoke_image = ["public.ecr.aws/amazonlinux/amazonlinux:2023"]
+env_vars = "./env.json"
+
+[default.local_start_lambda.parameters]
+warm_containers = "EAGER"
+invoke_image = ["public.ecr.aws/amazonlinux/amazonlinux:2023"]
+
+[default.local_invoke.parameters]
+invoke_image = ["public.ecr.aws/amazonlinux/amazonlinux:2023"]
