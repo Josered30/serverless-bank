@@ -60,7 +60,7 @@ impl EventRepository<Transaction> for TransactionRepository {
             Ok(_) => Ok(()),
             Err(error) => {
                 println!("Repository error: {:?}", error);
-                return Err(RepositoryError("Error saving event".to_string()));
+                return Err(RepositoryError::Error("Error saving event".to_string()));
             }
         };
 
@@ -83,7 +83,7 @@ impl EventRepository<Transaction> for TransactionRepository {
             Ok(items) => items,
             Err(error) => {
                 println!("Repository error: {:?}", error);
-                return Err(RepositoryError(
+                return Err(RepositoryError::Error(
                     "Error retrieving item with source {source}".to_string(),
                 ));
             }

@@ -1,5 +1,5 @@
 use entrypoints::execute_payment::execute_payment;
-use lambda_http::{run, service_fn, Error};
+use lambda_runtime::{run, service_fn, Error};
 
 mod adapters;
 mod domain;

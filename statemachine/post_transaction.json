@@ -1,0 +1,91 @@
+{
+  "Comment": "A description of my state machine",
+  "StartAt": "GetUser",
+  "States": {
+    "GetUser": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:getItem",
+      "Catch": [
+        {
+          "Comment": "DynamoDBError",
+          "ErrorEquals": ["States.ALL"],
+          "Next": "DynamoDBError",
+          "ResultPath": "$.DynamoDBError"
+        }
+      ],
+      "Parameters": {
+        "TableName": "${UserTableArn}",
+        "Key": {
+          "id": {
+            "S.$": "$.userId"
+          }
+        }
+      },
+      "Next": "ValidateUser",
+      "ResultPath": "$.DynamoDBUser",
+    },
+    "ValidateUser": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.DynamoDBUser.Item.user",
+          "IsPresent": true,
+          "Next": "PostTransaction"
+        }
+      ],
+      "Default": "ValidationError"
+    },
+    "PostTransaction": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "Payload": {
+          "user_id.$": "$.DynamoDBUser.Item.user.id.S",
+          "amount.$": "$.amount"
+        },
+        "FunctionName": "${ExecutePaymentLambdaArn}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "Comment": "PostTransaction",
+          "ErrorEquals": ["States.ALL"],
+          "Next": "LambdaError",
+          "ResultPath": "$.postTransactionError"
+        }
+      ],
+      "Next": "Succeed"
+    },
+    "Succeed": {
+      "Type": "Succeed"
+    },
+    "ValidationError": {
+      "Type": "Fail",
+      "Error": "ValidationError",
+      "Cause": "Invalid user"
+    },
+    "DynamoDBError": {
+      "Type": "Fail",
+      "Error": "DynamoDBError",
+      "Cause": "A server error has ocurred"
+    },
+    "LambdaError": {
+      "Type": "Fail",
+      "ErrorPath": "$.postTransactionError.Error",
+      "CausePath": "$.postTransactionError.Cause"
+    }
+  }
+}

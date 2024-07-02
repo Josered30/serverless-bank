@@ -1,17 +1,17 @@
 use std::{error::Error, fmt::Display};
 
-#[derive(Debug, Clone)]
-pub enum RepositoryError {
+#[derive(Debug)]
+pub enum CommandHandlerError {
     Error(String),
 }
 
-impl Error for RepositoryError {
+impl Error for CommandHandlerError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         None
     }
 
     fn description(&self) -> &str {
-        "An error has ocurred in repository"
+        "An error has ocurred in command handler"
     }
 
     fn cause(&self) -> Option<&dyn Error> {
@@ -19,10 +19,10 @@ impl Error for RepositoryError {
     }
 }
 
-impl Display for RepositoryError {
+impl Display for CommandHandlerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RepositoryError::Error(error) => write!(f, "{}", error),
+            CommandHandlerError::Error(error) => write!(f, "{}", error),
         }
     }
 }

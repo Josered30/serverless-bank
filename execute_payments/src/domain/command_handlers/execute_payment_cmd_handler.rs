@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use uuid::Uuid;
 
 use crate::{
@@ -27,7 +29,7 @@ impl ExecutePaymentCmdHandler {
     pub async fn execute(
         &self,
         execute_payment_cmd: ExecutePaymentCmd,
-    ) -> ExecutePaymentCmdHandlerOutput {
+    ) -> Result<ExecutePaymentCmdHandlerOutput, Box<dyn Error>> {
         let id = 1;
         let source = Uuid::new_v4().to_string();
 
@@ -38,11 +40,8 @@ impl ExecutePaymentCmdHandler {
             execute_payment_cmd.amount,
         );
 
-        match self.transaction_repository.save_event(transaction).await {
-            Ok(_) => (),
-            Err(error) => println!("{:?}", error),
-        }
+        self.transaction_repository.save_event(transaction).await?;
 
-        return ExecutePaymentCmdHandlerOutput { source, id };
+        return Ok(ExecutePaymentCmdHandlerOutput { source, id });
     }
 }

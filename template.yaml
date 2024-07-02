@@ -12,6 +12,20 @@ Globals:
     MemorySize: 128
 
 Resources:
+  UserTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: users
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: "HASH" 
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+       
   TransactionEventsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -40,7 +54,21 @@ Resources:
             ReadCapacityUnits: 1
             WriteCapacityUnits: 1
 
-  PaymentRole:
+  ExecutePaymentStfRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - states.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+
+  ExecutePaymentLambdaRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -66,15 +94,32 @@ Resources:
           - Effect: Allow
             Action: "dynamodb:PutItem"
             Resource: !GetAtt TransactionEventsTable.Arn
+          - Effect: Allow
+            Action: "dynamodb:GetItem"
+            Resource: !GetAtt UserTable.Arn
       Roles: 
-        - !Ref PaymentRole
+        - !Ref ExecutePaymentLambdaRole
+        - !Ref ExecutePaymentStfRole
+
+  InvokeLambdaPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: "InvokeLambdaPolicy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: "lambda:InvokeFunction"
+            Resource: !GetAtt ExecutePaymentFunction.Arn
+      Roles:
+        - !Ref ExecutePaymentStfRole
 
   PaymentRoleInstanceProfile: 
     Type: "AWS::IAM::InstanceProfile"
     Properties: 
       Path: "/"
       Roles: 
-        - !Ref PaymentRole
+        - !Ref ExecutePaymentLambdaRole
 
   ExecutePaymentFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
@@ -85,30 +130,33 @@ Resources:
       CodeUri: ./execute_payments # Points to dir of Cargo.toml
       Handler: bootstrap # Do not change, as this is the default executable name produced by Cargo Lambda
       Runtime: provided.al2023
-      Role: !GetAtt PaymentRole.Arn
+      Role: !GetAtt ExecutePaymentLambdaRole.Arn
       Architectures:
         - arm64
-      Events:
-        HelloWorld:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-          Properties:
-            Path: /payments
-            Method: post
       Environment:
         Variables: 
           TRANSACTION_EVENT_TABLE_NAME: !GetAtt TransactionEventsTable.Arn
-          
+
+  ExecutePaymentStepFunction:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: post-transaction-sf
+      DefinitionSubstitutions:
+        UserTableArn: !GetAtt UserTable.Arn
+        ExecutePaymentLambdaArn: !GetAtt ExecutePaymentFunction.Arn
+      DefinitionUri: statemachine/post_transaction.json
+      Role: !GetAtt ExecutePaymentStfRole.Arn
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
-  HelloWorldApi:
-    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/payments/"
-  HelloWorldFunction:
-    Description: "Hello World Lambda Function ARN"
+  ExecutePaymentFunctionOutput:
+    Description: "Execute Payment Lambda Function ARN"
     Value: !GetAtt ExecutePaymentFunction.Arn
-  HelloWorldFunctionIamRole:
+  ExecutePaymentStepFunctionOutput:
+    Description: "Execute Payment Step Function ARN"
+    Value: !GetAtt ExecutePaymentStepFunction.Arn
+  ExecutePaymentIamRoleOutput:
     Description: "Implicit IAM Role created for Hello World function"
     Value: !GetAtt ExecutePaymentFunction.Arn
