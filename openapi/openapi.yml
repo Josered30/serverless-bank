@@ -1,0 +1,128 @@
+openapi: 3.0.1
+info:
+  title: Bank API
+  description: "OpenAPI contract for Bank API"
+  version: 1.0.0
+  contact: {}
+tags:
+  - name: bank
+
+x-amazon-apigateway-request-validators:
+  full:
+    validateRequestBody: true
+    validateRequestParameters: true
+  body:
+    validateRequestBody: true
+    validateRequestParameters: false
+  params-only:
+    validateRequestBody: false
+    validateRequestParameters: true
+
+paths:
+  /payments:
+    post:
+      summary: Post method for execute payments
+      tags:
+        - payments
+      requestBody:
+        $ref: "#/components/requestBodies/PaymentRequest"
+      responses:
+        200:
+          $ref: "#/components/responses/PaymentResponse"
+        400:
+          $ref: "#/components/responses/Error"
+        500:
+          $ref: "#/components/responses/Error"
+      x-amazon-apigateway-request-validator: "body"
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        credentials:
+          Fn::GetAtt: [RestApiRole, Arn]
+        uri: 
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:states:action/StartSyncExecution"
+        passthroughBehavior: "when_no_match"
+        type: "aws"
+        requestTemplates:
+          application/json:
+            Fn::Sub: |-
+              {
+                "input": "$util.escapeJavaScript($input.json('$')).replaceAll("\\'","'")",
+                "stateMachineArn": "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:ExecutePaymentSf"
+              }
+        responses:
+          default:
+            statusCode: "200"
+            responseTemplates:
+              application/json: >
+                #set($inputRoot = $input.path('$'))
+                #if($inputRoot.status.toString().equals("FAILED"))
+                  #set($error = $inputRoot.error.toString())
+                  #if($error == "LambdaError")    
+                    #set($jsonCause = $util.parseJson($inputRoot.cause))
+                    #set($parsedErrorMessage = $util.parseJson($jsonCause.errorMessage))    
+                    #set($cause = $inputRoot.cause.toString())
+                    #set($context.responseOverride.status = 500)
+                  #elseif($error == "ValidationError")
+                    #set($cause = $inputRoot.cause.toString())
+                    #set($context.responseOverride.status = 400)
+                  #elseif($error == "DynamoDBError")
+                    #set($cause = $inputRoot.cause.toString())
+                    #set($context.responseOverride.status = 500)
+                  #else
+                    #set($cause = $inputRoot.cause.toString())
+                    #set($context.responseOverride.status = 500)
+                  #end         
+                  {
+                    "error": "$code",
+                    "cause": "$cause"
+                  }       
+                #else
+                  $input
+                #end
+
+components:
+  requestBodies:
+    PaymentRequest:
+      description: Payment request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/PaymentRequest"
+
+  responses:
+    PaymentResponse:
+      description: Payment response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/PaymentResponse"
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    PaymentRequest:
+      type: object
+      properties:
+        userId:
+          type: string
+        amount:
+          type: number
+
+    PaymentResponse:
+      type: object
+      properties:
+        source:
+          type: string
+        id:
+          type: number
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        cause:
+          type: string

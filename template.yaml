@@ -21,11 +21,11 @@ Resources:
           AttributeType: S
       KeySchema:
         - AttributeName: id
-          KeyType: "HASH" 
+          KeyType: "HASH"
       ProvisionedThroughput:
         ReadCapacityUnits: 1
         WriteCapacityUnits: 1
-       
+
   TransactionEventsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -54,7 +54,66 @@ Resources:
             ReadCapacityUnits: 1
             WriteCapacityUnits: 1
 
-  ExecutePaymentStfRole:
+  ExecutePaymentFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Metadata:
+      BuildMethod: rust-cargolambda # More info about Cargo Lambda: https://github.com/cargo-lambda/cargo-lambda
+    Properties:
+      FunctionName: ExecutePaymentFunction
+      CodeUri: ./execute_payments # Points to dir of Cargo.toml
+      Handler: bootstrap # Do not change, as this is the default executable name produced by Cargo Lambda
+      Runtime: provided.al2023
+      Role: !GetAtt ExecutePaymentLambdaRole.Arn
+      Architectures:
+        - arm64
+      Environment:
+        Variables:
+          TRANSACTION_EVENT_TABLE_NAME: !GetAtt TransactionEventsTable.Arn
+
+  ExecutePaymentSf:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: ExecutePaymentSf
+      DefinitionSubstitutions:
+        UserTableArn: !GetAtt UserTable.Arn
+        ExecutePaymentLambdaArn: !GetAtt ExecutePaymentFunction.Arn
+      DefinitionUri: statemachine/post_transaction.json
+      Role: !GetAtt ExecutePaymentSfRole.Arn
+      Type: EXPRESS
+      Logging:
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt ExecutePaymentSfLogGroup.Arn
+        IncludeExecutionData: false
+        Level: "ALL"
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Method: post
+            Path: /payments
+            RestApiId: !Ref ExecutePaymentApi
+
+  ExecutePaymentApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      DefinitionBody: # an OpenApi definition
+        "Fn::Transform":
+          Name: "AWS::Include"
+          Parameters:
+            Location: "openapi/openapi.yml"
+      OpenApiVersion: 3.0.0
+      EndpointConfiguration:
+        Type: REGIONAL
+    DependsOn: ExecutePaymentSf
+
+  ExecutePaymentSfLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: ExecutePaymentSfLogGroup
+
+  ExecutePaymentSfRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -67,6 +126,27 @@ Resources:
             Action:
               - "sts:AssumeRole"
       Path: /
+
+  RestApiRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: AllowSFNExec
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: "states:StartSyncExecution"
+                Resource: !GetAtt ExecutePaymentSf.Arn
 
   ExecutePaymentLambdaRole:
     Type: AWS::IAM::Role
@@ -84,22 +164,22 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
 
-  DynamoDBPolicy: 
+  DynamoDBPolicy:
     Type: "AWS::IAM::Policy"
-    Properties: 
+    Properties:
       PolicyName: "DynamoDBPolicy"
       PolicyDocument:
         Version: "2012-10-17"
-        Statement:  
+        Statement:
           - Effect: Allow
             Action: "dynamodb:PutItem"
             Resource: !GetAtt TransactionEventsTable.Arn
           - Effect: Allow
             Action: "dynamodb:GetItem"
             Resource: !GetAtt UserTable.Arn
-      Roles: 
+      Roles:
         - !Ref ExecutePaymentLambdaRole
-        - !Ref ExecutePaymentStfRole
+        - !Ref ExecutePaymentSfRole
 
   InvokeLambdaPolicy:
     Type: "AWS::IAM::Policy"
@@ -112,41 +192,39 @@ Resources:
             Action: "lambda:InvokeFunction"
             Resource: !GetAtt ExecutePaymentFunction.Arn
       Roles:
-        - !Ref ExecutePaymentStfRole
+        - !Ref ExecutePaymentSfRole
 
-  PaymentRoleInstanceProfile: 
+  CloudWatchPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: "CloudWatchPolicy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: 
+              - "cloudwatch:*"
+              - "logs:CreateLogDelivery"
+              - "logs:CreateLogStream"
+              - "logs:GetLogDelivery"
+              - "logs:UpdateLogDelivery"
+              - "logs:DeleteLogDelivery"
+              - "logs:ListLogDeliveries"
+              - "logs:PutLogEvents"
+              - "logs:PutResourcePolicy"
+              - "logs:DescribeResourcePolicies"
+              - "logs:DescribeLogGroups"
+            Resource: "*"
+      Roles:
+        - !Ref ExecutePaymentSfRole
+      
+
+  PaymentRoleInstanceProfile:
     Type: "AWS::IAM::InstanceProfile"
-    Properties: 
+    Properties:
       Path: "/"
-      Roles: 
+      Roles:
         - !Ref ExecutePaymentLambdaRole
-
-  ExecutePaymentFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
-    Metadata:
-      BuildMethod: rust-cargolambda # More info about Cargo Lambda: https://github.com/cargo-lambda/cargo-lambda
-    Properties:
-      FunctionName: execute-payment-function
-      CodeUri: ./execute_payments # Points to dir of Cargo.toml
-      Handler: bootstrap # Do not change, as this is the default executable name produced by Cargo Lambda
-      Runtime: provided.al2023
-      Role: !GetAtt ExecutePaymentLambdaRole.Arn
-      Architectures:
-        - arm64
-      Environment:
-        Variables: 
-          TRANSACTION_EVENT_TABLE_NAME: !GetAtt TransactionEventsTable.Arn
-
-  ExecutePaymentStepFunction:
-    Type: AWS::Serverless::StateMachine
-    Properties:
-      Name: post-transaction-sf
-      DefinitionSubstitutions:
-        UserTableArn: !GetAtt UserTable.Arn
-        ExecutePaymentLambdaArn: !GetAtt ExecutePaymentFunction.Arn
-      DefinitionUri: statemachine/post_transaction.json
-      Role: !GetAtt ExecutePaymentStfRole.Arn
-
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
@@ -156,7 +234,7 @@ Outputs:
     Value: !GetAtt ExecutePaymentFunction.Arn
   ExecutePaymentStepFunctionOutput:
     Description: "Execute Payment Step Function ARN"
-    Value: !GetAtt ExecutePaymentStepFunction.Arn
+    Value: !GetAtt ExecutePaymentSf.Arn
   ExecutePaymentIamRoleOutput:
     Description: "Implicit IAM Role created for Hello World function"
     Value: !GetAtt ExecutePaymentFunction.Arn

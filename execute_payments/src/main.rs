@@ -16,7 +16,7 @@ async fn main() -> Result<(), Error> {
         .init();
 
     let service = service_fn(execute_payment);
-    run(service).await;
+    let _ = run(service).await;
 
     return Ok(());
 }

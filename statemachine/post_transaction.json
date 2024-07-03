@@ -22,13 +22,13 @@
         }
       },
       "Next": "ValidateUser",
-      "ResultPath": "$.DynamoDBUser",
+      "ResultPath": "$.DynamoDBUser"
     },
     "ValidateUser": {
       "Type": "Choice",
       "Choices": [
         {
-          "Variable": "$.DynamoDBUser.Item.user",
+          "Variable": "$.DynamoDBUser.Item.id",
           "IsPresent": true,
           "Next": "PostTransaction"
         }
@@ -41,7 +41,7 @@
       "OutputPath": "$.Payload",
       "Parameters": {
         "Payload": {
-          "user_id.$": "$.DynamoDBUser.Item.user.id.S",
+          "user_id.$": "$.DynamoDBUser.Item.id.S",
           "amount.$": "$.amount"
         },
         "FunctionName": "${ExecutePaymentLambdaArn}"
@@ -84,7 +84,7 @@
     },
     "LambdaError": {
       "Type": "Fail",
-      "ErrorPath": "$.postTransactionError.Error",
+      "Error": "LambdaError",
       "CausePath": "$.postTransactionError.Cause"
     }
   }
