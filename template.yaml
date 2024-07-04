@@ -60,10 +60,26 @@ Resources:
       BuildMethod: rust-cargolambda # More info about Cargo Lambda: https://github.com/cargo-lambda/cargo-lambda
     Properties:
       FunctionName: ExecutePaymentFunction
-      CodeUri: ./execute_payments # Points to dir of Cargo.toml
+      CodeUri: ./functions/execute_payments # Points to dir of Cargo.toml
       Handler: bootstrap # Do not change, as this is the default executable name produced by Cargo Lambda
       Runtime: provided.al2023
       Role: !GetAtt ExecutePaymentLambdaRole.Arn
+      Architectures:
+        - arm64
+      Environment:
+        Variables:
+          TRANSACTION_EVENT_TABLE_NAME: !GetAtt TransactionEventsTable.Arn
+  
+  RequestPaymentFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Metadata:
+      BuildMethod: rust-cargolambda # More info about Cargo Lambda: https://github.com/cargo-lambda/cargo-lambda
+    Properties:
+      FunctionName: RequestPaymentFunction
+      CodeUri: ./functions/request_payments # Points to dir of Cargo.toml
+      Handler: bootstrap # Do not change, as this is the default executable name produced by Cargo Lambda
+      Runtime: provided.al2023
+      Role: !GetAtt RequestPaymentLambdaRole.Arn
       Architectures:
         - arm64
       Environment:
@@ -77,6 +93,7 @@ Resources:
       DefinitionSubstitutions:
         UserTableArn: !GetAtt UserTable.Arn
         ExecutePaymentLambdaArn: !GetAtt ExecutePaymentFunction.Arn
+        RequestPaymentLambdaArn: !GetAtt RequestPaymentFunction.Arn
       DefinitionUri: statemachine/post_transaction.json
       Role: !GetAtt ExecutePaymentSfRole.Arn
       Type: EXPRESS
@@ -84,7 +101,7 @@ Resources:
         Destinations:
           - CloudWatchLogsLogGroup:
               LogGroupArn: !GetAtt ExecutePaymentSfLogGroup.Arn
-        IncludeExecutionData: false
+        IncludeExecutionData: true
         Level: "ALL"
       Events:
         ApiEvent:
@@ -164,6 +181,22 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
 
+  RequestPaymentLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
   DynamoDBPolicy:
     Type: "AWS::IAM::Policy"
     Properties:
@@ -177,8 +210,14 @@ Resources:
           - Effect: Allow
             Action: "dynamodb:GetItem"
             Resource: !GetAtt UserTable.Arn
+          - Effect: Allow
+            Action: "dynamodb:Query"
+            Resource: 
+              - !GetAtt TransactionEventsTable.Arn
+              - !Sub "${TransactionEventsTable.Arn}/index/*"
       Roles:
         - !Ref ExecutePaymentLambdaRole
+        - !Ref RequestPaymentLambdaRole
         - !Ref ExecutePaymentSfRole
 
   InvokeLambdaPolicy:
@@ -190,7 +229,9 @@ Resources:
         Statement:
           - Effect: Allow
             Action: "lambda:InvokeFunction"
-            Resource: !GetAtt ExecutePaymentFunction.Arn
+            Resource: 
+              - !GetAtt ExecutePaymentFunction.Arn
+              - !GetAtt RequestPaymentFunction.Arn
       Roles:
         - !Ref ExecutePaymentSfRole
 
@@ -218,13 +259,20 @@ Resources:
       Roles:
         - !Ref ExecutePaymentSfRole
       
-
-  PaymentRoleInstanceProfile:
+  ExecutePaymentRoleInstanceProfile:
     Type: "AWS::IAM::InstanceProfile"
     Properties:
       Path: "/"
       Roles:
         - !Ref ExecutePaymentLambdaRole
+  
+  RequestPaymentRoleInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref RequestPaymentLambdaRole
+
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
@@ -232,6 +280,9 @@ Outputs:
   ExecutePaymentFunctionOutput:
     Description: "Execute Payment Lambda Function ARN"
     Value: !GetAtt ExecutePaymentFunction.Arn
+  RequestPaymentFunctionOutput:
+    Description: "Request Payment Lambda Function ARN"
+    Value: !GetAtt RequestPaymentFunction.Arn
   ExecutePaymentStepFunctionOutput:
     Description: "Execute Payment Step Function ARN"
     Value: !GetAtt ExecutePaymentSf.Arn

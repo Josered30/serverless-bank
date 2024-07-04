@@ -30,21 +30,24 @@
         {
           "Variable": "$.DynamoDBUser.Item.id",
           "IsPresent": true,
-          "Next": "PostTransaction"
+          "Next": "RequestPayment"
         }
       ],
       "Default": "ValidationError"
     },
-    "PostTransaction": {
+    "RequestPayment": {
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
-      "OutputPath": "$.Payload",
+      "ResultPath": "$.requestPaymentOutput",
+      "ResultSelector": {
+        "payload.$": "$.Payload"
+      },
       "Parameters": {
         "Payload": {
           "user_id.$": "$.DynamoDBUser.Item.id.S",
           "amount.$": "$.amount"
         },
-        "FunctionName": "${ExecutePaymentLambdaArn}"
+        "FunctionName": "${RequestPaymentLambdaArn}"
       },
       "Retry": [
         {
@@ -61,10 +64,45 @@
       ],
       "Catch": [
         {
-          "Comment": "PostTransaction",
+          "Comment": "RequestPayment",
           "ErrorEquals": ["States.ALL"],
           "Next": "LambdaError",
-          "ResultPath": "$.postTransactionError"
+          "ResultPath": "$.lambdaError"
+        }
+      ],
+      "Next": "ExecutePayment"
+    },
+    "ExecutePayment": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "Payload": {
+          "source.$": "$.requestPaymentOutput.payload.source",
+          "id.$": "$.requestPaymentOutput.payload.id"
+        },
+        "FunctionName": "${ExecutePaymentLambdaArn}"
+      },
+      "ResultPath": "$",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "Comment": "ExecutePayment",
+          "ErrorEquals": ["States.ALL"],
+          "Next": "LambdaError",
+          "ResultPath": "$.lambdaError"
         }
       ],
       "Next": "Succeed"
@@ -85,7 +123,7 @@
     "LambdaError": {
       "Type": "Fail",
       "Error": "LambdaError",
-      "CausePath": "$.postTransactionError.Cause"
+      "CausePath": "$.lambdaError.Cause"
     }
   }
 }

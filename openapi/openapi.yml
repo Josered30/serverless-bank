@@ -73,11 +73,11 @@ paths:
                     #set($context.responseOverride.status = 500)
                   #end         
                   {
-                    "error": "$code",
+                    "error": "$error",
                     "cause": "$cause"
                   }       
                 #else
-                  $input
+                  $inputRoot.output
                 #end
 
 components:

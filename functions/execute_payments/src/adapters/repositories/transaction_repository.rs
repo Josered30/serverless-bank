@@ -1,6 +1,5 @@
 use std::{collections::HashMap, env};
 
-use aws_config::BehaviorVersion;
 use aws_sdk_dynamodb::types::AttributeValue;
 
 use crate::domain::{
@@ -8,27 +7,26 @@ use crate::domain::{
     ports::event_repository::EventRepository,
 };
 
-pub struct TransactionRepository {
+pub struct TransactionRepository<'a> {
     transaction_table_name: String,
-    dynamodb_client: aws_sdk_dynamodb::Client,
+    dynamodb_client: &'a aws_sdk_dynamodb::Client,
 }
 
-impl TransactionRepository {
-    pub async fn new() -> Self {
-        let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
+impl<'a> TransactionRepository<'a> {
+    pub fn new(dynamodb_client: &'a aws_sdk_dynamodb::Client) -> Self {
         let transaction_table_name = match env::var("TRANSACTION_EVENT_TABLE_NAME") {
             Ok(var) => var,
             Err(_) => "TABLE_NAME".to_owned(),
         };
 
         Self {
-            dynamodb_client: aws_sdk_dynamodb::Client::new(&config),
+            dynamodb_client,
             transaction_table_name,
         }
     }
 }
 
-impl EventRepository<Transaction> for TransactionRepository {
+impl<'a> EventRepository<Transaction> for TransactionRepository<'a> {
     async fn save_event(&self, transaction: Transaction) -> Result<(), RepositoryError> {
         let mut item = HashMap::<String, AttributeValue>::new();
 
@@ -71,8 +69,9 @@ impl EventRepository<Transaction> for TransactionRepository {
         let query_output = self
             .dynamodb_client
             .query()
+            .table_name(&self.transaction_table_name)
             .expression_attribute_names("#source", "source")
-            .expression_attribute_values(":source", AttributeValue::S(source))
+            .expression_attribute_values(":source", AttributeValue::S(source.clone()))
             .key_condition_expression("#source = :source")
             .limit(1)
             .scan_index_forward(false)
@@ -83,9 +82,9 @@ impl EventRepository<Transaction> for TransactionRepository {
             Ok(items) => items,
             Err(error) => {
                 println!("Repository error: {:?}", error);
-                return Err(RepositoryError::Error(
-                    "Error retrieving item with source {source}".to_string(),
-                ));
+                return Err(RepositoryError::Error(format!(
+                    "Error retrieving item with source {source}"
+                )));
             }
         };
 
@@ -111,6 +110,7 @@ impl EventRepository<Transaction> for TransactionRepository {
                         .unwrap()
                         .parse::<f64>()
                         .unwrap(),
+                    item.get("event_type").unwrap().as_s().unwrap().to_string(),
                 )
             })
             .collect();
