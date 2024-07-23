@@ -19,6 +19,52 @@ x-amazon-apigateway-request-validators:
     validateRequestParameters: true
 
 paths:
+  /users:
+    post:
+      summary: Post method for create users
+      tags:
+        - users
+      requestBody:
+        $ref: "#/components/requestBodies/CreateUserRequest"
+      responses:
+        200:
+          $ref: "#/components/responses/CreateUserResponse"
+        400:
+          $ref: "#/components/responses/ApiError"
+        500:
+          $ref: "#/components/responses/ApiError"
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri:
+          Fn::Sub:
+            - "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CreateUserFunctionArn}/invocations"
+            - CreateUserFunctionArn:
+                Fn::GetAtt: [CreateUserFunction, Arn]
+        type: "aws_proxy"
+
+  /credits:
+    post:
+      summary: Post method for add credits to user
+      tags:
+        - credits
+      requestBody:
+        $ref: "#/components/requestBodies/AddCreditsRequest"
+      responses:
+        200:
+          $ref: "#/components/responses/AddCreditsResponse"
+        400:
+          $ref: "#/components/responses/ApiError"
+        500:
+          $ref: "#/components/responses/ApiError"
+      x-amazon-apigateway-integration:
+        httpMethod: "POST"
+        uri:
+          Fn::Sub:
+            - "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AddCreditsFunctionArn}/invocations"
+            - AddCreditsFunctionArn:
+                Fn::GetAtt: [AddCreditsFunction, Arn]
+        type: "aws_proxy"
+
   /payments:
     post:
       summary: Post method for execute payments
@@ -38,7 +84,7 @@ paths:
         httpMethod: "POST"
         credentials:
           Fn::GetAtt: [RestApiRole, Arn]
-        uri: 
+        uri:
           Fn::Sub: "arn:aws:apigateway:${AWS::Region}:states:action/StartSyncExecution"
         passthroughBehavior: "when_no_match"
         type: "aws"
@@ -47,7 +93,7 @@ paths:
             Fn::Sub: |-
               {
                 "input": "$util.escapeJavaScript($input.json('$')).replaceAll("\\'","'")",
-                "stateMachineArn": "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:ExecutePaymentSf"
+                "stateMachineArn": "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:ExecuteTransactionSf"
               }
         responses:
           default:
@@ -88,14 +134,41 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/PaymentRequest"
+    AddCreditsRequest:
+      description: Add credits request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AddCreditsRequest"
+    CreateUserRequest:
+      description: Create user request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CreateUserRequest"
 
   responses:
+    AddCreditsResponse:
+      description: Add credits response
+
+    CreateUserResponse:
+      description: Create user response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CreateUserResponse"
     PaymentResponse:
       description: Payment response
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/PaymentResponse"
+    ApiError:
+      description: ApiError
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
     Error:
       description: Error
       content:
@@ -104,6 +177,28 @@ components:
             $ref: "#/components/schemas/Error"
 
   schemas:
+    CreateUserRequest:
+      type: object
+      properties:
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+    CreateUserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+
+    AddCreditsRequest:
+      type: object
+      properties:
+        userId:
+          type: string
+        amount:
+          type: number
     PaymentRequest:
       type: object
       properties:
@@ -111,7 +206,6 @@ components:
           type: string
         amount:
           type: number
-
     PaymentResponse:
       type: object
       properties:
@@ -119,6 +213,11 @@ components:
           type: string
         id:
           type: number
+    ApiError:
+      type: object
+      properties:
+        message:
+          type: string
     Error:
       type: object
       properties:

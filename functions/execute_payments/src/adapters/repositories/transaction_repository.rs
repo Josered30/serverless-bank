@@ -1,5 +1,6 @@
-use std::{collections::HashMap, env};
+use std::{collections::HashMap, env, sync::Arc};
 
+use async_trait::async_trait;
 use aws_sdk_dynamodb::types::AttributeValue;
 
 use crate::domain::{
@@ -7,13 +8,13 @@ use crate::domain::{
     ports::event_repository::EventRepository,
 };
 
-pub struct TransactionRepository<'a> {
+pub struct TransactionRepository {
     transaction_table_name: String,
-    dynamodb_client: &'a aws_sdk_dynamodb::Client,
+    dynamodb_client: Arc<aws_sdk_dynamodb::Client>,
 }
 
-impl<'a> TransactionRepository<'a> {
-    pub fn new(dynamodb_client: &'a aws_sdk_dynamodb::Client) -> Self {
+impl TransactionRepository {
+    pub fn new(dynamodb_client: Arc<aws_sdk_dynamodb::Client>) -> Self {
         let transaction_table_name = match env::var("TRANSACTION_EVENT_TABLE_NAME") {
             Ok(var) => var,
             Err(_) => "TABLE_NAME".to_owned(),
@@ -26,7 +27,8 @@ impl<'a> TransactionRepository<'a> {
     }
 }
 
-impl<'a> EventRepository<Transaction> for TransactionRepository<'a> {
+#[async_trait]
+impl EventRepository<Transaction> for TransactionRepository {
     async fn save_event(&self, transaction: Transaction) -> Result<(), RepositoryError> {
         let mut item = HashMap::<String, AttributeValue>::new();
 

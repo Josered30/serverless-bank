@@ -2,14 +2,11 @@ use std::error::Error;
 
 use uuid::Uuid;
 
-use crate::{
-    adapters::repositories::transaction_repository::TransactionRepository,
-    domain::{
-        commands::execute_payment_cmd::ExecutePaymentCmd,
-        errors::command_handler_error::CommandHandlerError,
-        model::{event_type::EventType, transaction::Transaction},
-        ports::event_repository::EventRepository,
-    },
+use crate::domain::{
+    commands::execute_payment_cmd::ExecutePaymentCmd,
+    errors::command_handler_error::CommandHandlerError,
+    model::{event_type::EventType, transaction::Transaction},
+    ports::event_repository::EventRepository,
 };
 
 pub struct ExecutePaymentCmdHandlerOutput {
@@ -17,12 +14,12 @@ pub struct ExecutePaymentCmdHandlerOutput {
     pub id: i32,
 }
 
-pub struct ExecutePaymentCmdHandler<'a> {
-    transaction_repository: &'a TransactionRepository<'a>,
+pub struct ExecutePaymentCmdHandler {
+    transaction_repository: Box<dyn EventRepository<Transaction>>,
 }
 
-impl<'a> ExecutePaymentCmdHandler<'a> {
-    pub fn new(transaction_repository: &'a TransactionRepository) -> Self {
+impl ExecutePaymentCmdHandler {
+    pub fn new(transaction_repository: Box<dyn EventRepository<Transaction>>) -> Self {
         Self {
             transaction_repository,
         }

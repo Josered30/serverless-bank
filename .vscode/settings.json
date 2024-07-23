@@ -1,0 +1,8 @@
+{
+  "rust-analyzer.linkedProjects": [
+    "functions/add_credits/Cargo.toml",
+    "functions/execute_payments/Cargo.toml",
+    "functions/request_payments/Cargo.toml",
+    "functions/create_user/Cargo.toml"
+  ]
+}

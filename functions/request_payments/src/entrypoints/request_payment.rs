@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use aws_config::BehaviorVersion;
-use lambda_runtime::{tower::BoxError, LambdaEvent};
+use lambda_runtime::{Error, LambdaEvent};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -24,7 +26,7 @@ pub struct RequestPaymentResponse {
 
 pub async fn request_payment(
     lambda_event: LambdaEvent<RequestPaymentRequest>,
-) -> Result<RequestPaymentResponse, BoxError> {
+) -> Result<RequestPaymentResponse, Error> {
     tracing::info!(
         "Init request payment for user {}",
         lambda_event.payload.user_id
@@ -34,15 +36,15 @@ pub async fn request_payment(
         RequestPaymentCmd::new(lambda_event.payload.user_id, lambda_event.payload.amount);
 
     let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
-    let dynamodb_client = aws_sdk_dynamodb::Client::new(&config);
+    let dynamodb_client = Arc::new(aws_sdk_dynamodb::Client::new(&config));
 
-    let transaction_repository = TransactionRepository::new(&dynamodb_client);
-    let execute_payment_cmd_handler = RequestPaymentCmdHandler::new(&transaction_repository);
+    let transaction_repository = Box::new(TransactionRepository::new(dynamodb_client.clone()));
+    let execute_payment_cmd_handler = RequestPaymentCmdHandler::new(transaction_repository);
 
     let result = execute_payment_cmd_handler
         .execute(execute_payment_cmd)
         .await
-        .map_err(|error| BoxError::from(error.to_string()))?;
+        .map_err(|error| Error::from(error.to_string()))?;
 
     return Ok(RequestPaymentResponse {
         source: result.source,

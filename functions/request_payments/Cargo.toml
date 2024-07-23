@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+async-trait = "0.1.81"
 aws-config = "1.5.3"
 aws-sdk-dynamodb = "1.36.0"
 dotenv = "0.15.0"

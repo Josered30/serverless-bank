@@ -2,13 +2,10 @@ use std::error::Error;
 
 use uuid::Uuid;
 
-use crate::{
-    adapters::repositories::transaction_repository::TransactionRepository,
-    domain::{
-        commands::request_payment_cmd::RequestPaymentCmd,
-        model::{event_type::EventType, transaction::Transaction},
-        ports::event_repository::EventRepository,
-    },
+use crate::domain::{
+    commands::request_payment_cmd::RequestPaymentCmd,
+    model::{event_type::EventType, transaction::Transaction},
+    ports::event_repository::EventRepository,
 };
 
 pub struct RequestPaymentCmdHandlerOutput {
@@ -16,15 +13,13 @@ pub struct RequestPaymentCmdHandlerOutput {
     pub id: i32,
 }
 
-pub struct RequestPaymentCmdHandler<'a> {
-    transaction_repository: &'a TransactionRepository<'a>,
+pub struct RequestPaymentCmdHandler {
+    event_repository: Box<dyn EventRepository<Transaction>>,
 }
 
-impl<'a> RequestPaymentCmdHandler<'a> {
-    pub fn new(transaction_repository: &'a TransactionRepository) -> Self {
-        Self {
-            transaction_repository,
-        }
+impl RequestPaymentCmdHandler {
+    pub fn new(event_repository: Box<dyn EventRepository<Transaction>>) -> Self {
+        Self { event_repository }
     }
 
     pub async fn execute(
@@ -43,8 +38,8 @@ impl<'a> RequestPaymentCmdHandler<'a> {
         );
 
         tracing::debug!("Generating event");
-        
-        self.transaction_repository.save_event(transaction).await?;
+
+        self.event_repository.save_event(transaction).await?;
         tracing::info!("Event saved: {} - {}", &source, id);
 
         return Ok(RequestPaymentCmdHandlerOutput { source, id });
