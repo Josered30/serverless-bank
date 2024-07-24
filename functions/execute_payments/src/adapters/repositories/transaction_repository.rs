@@ -49,6 +49,11 @@ impl EventRepository<Transaction> for TransactionRepository {
             AttributeValue::N(transaction.amount.to_string()),
         );
 
+        item.insert(
+            "event_type".to_string(),
+            AttributeValue::S(transaction.event_type),
+        );
+
         let result = match self
             .dynamodb_client
             .put_item()

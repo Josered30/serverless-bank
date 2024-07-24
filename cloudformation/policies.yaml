@@ -1,0 +1,146 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  ExecuteTransactionStfArn:
+    Type: String
+  ExecutePaymentFunctionArn:
+    Type: String
+  RequestPaymentFunctionArn:
+    Type: String
+  TransactionEventsTableArn:
+    Type: String
+  UserCreditsTableArn:
+    Type: String
+  UserTableArn:
+    Type: String
+  ExecutePaymentLambdaRole:
+    Type: String
+  RequestPaymentLambdaRole:
+    Type: String
+  AddCreditsLambdaRole:
+    Type: String
+  CreateUserLambdaRole:
+    Type: String
+  ExecuteTransactionStfRole:
+    Type: String
+  BankApiRole:
+    Type: String
+
+Resources:
+  ExecuteStepFunctionPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: "ExecuteStepFunctionPolicy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: "states:StartSyncExecution"
+            Resource: !Ref ExecuteTransactionStfArn
+      Roles:
+        - !Ref ExecuteTransactionStfRole
+
+  DynamoDBPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: "DynamoDBPolicy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: "dynamodb:PutItem"
+            Resource: !Ref TransactionEventsTableArn
+          - Effect: Allow
+            Action: 
+              - "dynamodb:GetItem"
+              - "dynamodb:PutItem"
+            Resource: !Ref UserTableArn
+          - Effect: Allow
+            Action: "dynamodb:Query"
+            Resource:
+              - !Ref TransactionEventsTableArn
+              - !Sub "${TransactionEventsTableArn}/index/*"
+          - Effect: Allow
+            Action: 
+              - "dynamodb:GetItem"
+              - "dynamodb:UpdateItem"
+              - "dynamodb:PutItem"
+            Resource: !Ref UserCreditsTableArn
+      Roles:
+        - !Ref ExecutePaymentLambdaRole
+        - !Ref RequestPaymentLambdaRole
+        - !Ref AddCreditsLambdaRole
+        - !Ref CreateUserLambdaRole
+        - !Ref ExecuteTransactionStfRole
+
+  InvokeLambdaPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: "InvokeLambdaPolicy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: "lambda:InvokeFunction"
+            Resource:
+              - !Ref ExecutePaymentFunctionArn
+              - !Ref RequestPaymentFunctionArn
+      Roles:
+        - !Ref ExecuteTransactionStfRole
+
+  # CloudWatchPolicy:
+  #   Type: "AWS::IAM::Policy"
+  #   Properties:
+  #     PolicyName: "CloudWatchPolicy"
+  #     PolicyDocument:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Effect: Allow
+  #           Action:
+  #             - "cloudwatch:*"
+  #             - "logs:*"
+  #           Resource: "*"
+  #     Roles:
+  #       - !Ref ExecuteTransactionStfRole
+
+  BankApiPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:  
+      PolicyName: AllowSFNExec
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: "states:StartSyncExecution"
+            Resource: !Ref ExecuteTransactionStfArn
+      Roles:
+        - !Ref BankApiRole
+
+  ExecutePaymentRoleInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref ExecutePaymentLambdaRole
+
+  RequestPaymentRoleInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref RequestPaymentLambdaRole
+  
+  AddCreditsRoleInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref AddCreditsLambdaRole
+
+  CreateUserRoleInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref CreateUserLambdaRole

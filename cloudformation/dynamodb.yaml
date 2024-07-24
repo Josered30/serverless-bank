@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: users
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: "HASH"
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+
+  UserCreditsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: user_credits
+      AttributeDefinitions:
+        - AttributeName: user
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user
+          KeyType: "HASH"
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+
+  TransactionEventsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: transaction_events
+      AttributeDefinitions:
+        - AttributeName: source
+          AttributeType: S
+        - AttributeName: id
+          AttributeType: N
+      KeySchema:
+        - AttributeName: source
+          KeyType: "HASH"
+        - AttributeName: id
+          KeyType: "RANGE"
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      GlobalSecondaryIndexes:
+        - IndexName: by-source
+          KeySchema:
+            - AttributeName: source
+              KeyType: "HASH"
+          Projection:
+            ProjectionType: "ALL"
+          ProvisionedThroughput:
+            ReadCapacityUnits: 1
+            WriteCapacityUnits: 1
+
+Outputs:
+  UsersTableArn:
+    Value: !GetAtt UsersTable.Arn
+  UserCreditsTableArn:
+    Value: !GetAtt UserCreditsTable.Arn
+  TransactionEventsTableArn:
+    Value: !GetAtt TransactionEventsTable.Arn

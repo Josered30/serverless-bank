@@ -1,0 +1,268 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 3
+    MemorySize: 128
+
+Parameters:
+  TransactionEventsTableArn:
+    Type: String
+  UserCreditsTableArn:
+    Type: String
+  UsersTableArn:
+    Type: String
+
+  
+Resources:
+  BankApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      DefinitionBody: # an OpenApi definition
+        "Fn::Transform":
+          Name: "AWS::Include"
+          Parameters:
+            Location: "openapi/openapi.yml"
+      OpenApiVersion: 3.0.0
+      EndpointConfiguration:
+        Type: REGIONAL
+
+  ExecutePaymentFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Metadata:
+      BuildMethod: rust-cargolambda # More info about Cargo Lambda: https://github.com/cargo-lambda/cargo-lambda
+    Properties:
+      FunctionName: ExecutePaymentFunction
+      CodeUri: ../functions/execute_payments # Points to dir of Cargo.toml
+      Handler: bootstrap # Do not change, as this is the default executable name produced by Cargo Lambda
+      Runtime: provided.al2023
+      Role: !GetAtt ExecutePaymentLambdaRole.Arn
+      Architectures:
+        - arm64
+      Environment:
+        Variables:
+          TRANSACTION_EVENT_TABLE_NAME: !Ref TransactionEventsTableArn
+
+  RequestPaymentFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Metadata:
+      BuildMethod: rust-cargolambda # More info about Cargo Lambda: https://github.com/cargo-lambda/cargo-lambda
+    Properties:
+      FunctionName: RequestPaymentFunction
+      CodeUri: ../functions/request_payments # Points to dir of Cargo.toml
+      Handler: bootstrap # Do not change, as this is the default executable name produced by Cargo Lambda
+      Runtime: provided.al2023
+      Role: !GetAtt RequestPaymentLambdaRole.Arn
+      Architectures:
+        - arm64
+      Environment:
+        Variables:
+          TRANSACTION_EVENT_TABLE_NAME: !Ref TransactionEventsTableArn
+
+  AddCreditsFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Metadata:
+      BuildMethod: rust-cargolambda # More info about Cargo Lambda: https://github.com/cargo-lambda/cargo-lambda
+    Properties:
+      FunctionName: AddCreditsFunction
+      CodeUri: ../functions/add_credits # Points to dir of Cargo.toml
+      Handler: bootstrap # Do not change, as this is the default executable name produced by Cargo Lambda
+      Runtime: provided.al2023
+      Role: !GetAtt AddCreditsLambdaRole.Arn
+      Architectures:
+        - arm64
+      Environment:
+        Variables:
+          USER_CREDITS_TABLE_NAME: !Ref UserCreditsTableArn
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Method: post
+            Path: /credits
+            RestApiId: !Ref BankApi
+
+  CreateUserFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Metadata:
+      BuildMethod: rust-cargolambda # More info about Cargo Lambda: https://github.com/cargo-lambda/cargo-lambda
+    Properties:
+      FunctionName: CreateUserFunction
+      CodeUri: ../functions/create_user # Points to dir of Cargo.toml
+      Handler: bootstrap # Do not change, as this is the default executable name produced by Cargo Lambda
+      Runtime: provided.al2023
+      Role: !GetAtt CreateUserLambdaRole.Arn
+      Architectures:
+        - arm64
+      Environment:
+        Variables:
+          USER_TABLE_NAME: !Ref UsersTableArn
+          USER_CREDITS_TABLE_NAME: !Ref UserCreditsTableArn
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Method: post
+            Path: /users
+            RestApiId: !Ref BankApi
+
+  ExecuteTransactionStf:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: ExecuteTransactionStf
+      DefinitionSubstitutions:
+        UserTableArn: !Ref UsersTableArn
+        ExecutePaymentLambdaArn: !GetAtt ExecutePaymentFunction.Arn
+        RequestPaymentLambdaArn: !GetAtt RequestPaymentFunction.Arn
+      DefinitionUri: statemachine/post_transaction.json
+      Role: !GetAtt ExecuteTransactionStfRole.Arn
+      Type: EXPRESS
+      Logging:
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt ExecuteTransactionStfLogGroup.Arn
+        IncludeExecutionData: true
+        Level: "ALL"
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Method: post
+            Path: /payments
+            RestApiId: !Ref BankApi
+
+  BankApiRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+
+  ExecuteTransactionStfRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - states.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchFullAccessV2
+
+  ExecutePaymentLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  AddCreditsLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  CreateUserLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  RequestPaymentLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  ExecuteTransactionStfLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: ExecuteTransactionStfLogGroup
+ 
+
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  BankApiId:
+    Value: !GetAtt BankApi.RootResourceId
+  ExecutePaymentFunctionArn:
+    Description: "Execute Payment Lambda Function ARN"
+    Value: !GetAtt ExecutePaymentFunction.Arn
+  RequestPaymentFunctionArn:
+    Description: "Request Payment Lambda Function ARN"
+    Value: !GetAtt RequestPaymentFunction.Arn
+  AddCreditsFunctionArn:
+    Description: "Add credits lambda Function ARN"
+    Value: !GetAtt AddCreditsFunction.Arn
+  CreateUserFunctionArn:
+    Description: "Create user lambda Function ARN"
+    Value: !GetAtt CreateUserFunction.Arn
+  ExecuteTransactionStfArn:
+    Value: !GetAtt ExecuteTransactionStf.Arn
+  ExecutePaymentLambdaRole:
+    Value: !Ref ExecutePaymentLambdaRole
+  RequestPaymentLambdaRole:
+    Value: !Ref RequestPaymentLambdaRole
+  AddCreditsLambdaRole:
+    Value: !Ref AddCreditsLambdaRole
+  CreateUserLambdaRole:
+    Value: !Ref CreateUserLambdaRole
+  ExecuteTransactionStfRole:
+    Value: !Ref ExecuteTransactionStfRole
+  BankApiRole:
+    Value: !Ref BankApiRole

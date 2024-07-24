@@ -21,6 +21,5 @@ tracing-subscriber = { version = "0.3", default-features = false, features = [
 ] }
 uuid = { version = "1.9.1", features = ["v4"] }
 
-
 [package.metadata.lambda.build]
 artifact_executable_name = "execute_payments"

@@ -83,7 +83,7 @@ paths:
       x-amazon-apigateway-integration:
         httpMethod: "POST"
         credentials:
-          Fn::GetAtt: [RestApiRole, Arn]
+          Fn::GetAtt: [BankApiRole, Arn]
         uri:
           Fn::Sub: "arn:aws:apigateway:${AWS::Region}:states:action/StartSyncExecution"
         passthroughBehavior: "when_no_match"
@@ -93,7 +93,7 @@ paths:
             Fn::Sub: |-
               {
                 "input": "$util.escapeJavaScript($input.json('$')).replaceAll("\\'","'")",
-                "stateMachineArn": "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:ExecuteTransactionSf"
+                "stateMachineArn": "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:ExecuteTransactionStf"
               }
         responses:
           default:
