@@ -16,10 +16,10 @@ Resources:
         ReadCapacityUnits: 1
         WriteCapacityUnits: 1
 
-  UserCreditsTable:
+  AccountsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: user_credits
+      TableName: accounts
       AttributeDefinitions:
         - AttributeName: user
           AttributeType: S
@@ -30,10 +30,10 @@ Resources:
         ReadCapacityUnits: 1
         WriteCapacityUnits: 1
 
-  TransactionEventsTable:
+  TransactionsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: transaction_events
+      TableName: transactions
       AttributeDefinitions:
         - AttributeName: source
           AttributeType: S
@@ -57,11 +57,16 @@ Resources:
           ProvisionedThroughput:
             ReadCapacityUnits: 1
             WriteCapacityUnits: 1
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+
 
 Outputs:
   UsersTableArn:
     Value: !GetAtt UsersTable.Arn
-  UserCreditsTableArn:
-    Value: !GetAtt UserCreditsTable.Arn
-  TransactionEventsTableArn:
-    Value: !GetAtt TransactionEventsTable.Arn
+  AccountsTableArn:
+    Value: !GetAtt AccountsTable.Arn
+  TransactionsTableArn:
+    Value: !GetAtt TransactionsTable.Arn
+  TransactionsTableStreamArn:
+    Value: !GetAtt TransactionsTable.StreamArn

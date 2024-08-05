@@ -1,28 +1,28 @@
 use tokio::sync::Mutex;
 
 use crate::{
-    adapters::repositories::user_credits_repository,
     domain::{
-        commands::add_credits_cmd::AddCreditsCmd, errors::api_error::ApiError,
-        ports::user_credits_repository::UserCreditsRepository,
+        commands::add_credits_cmd::AddCreditsCmd,
+        ports::accounts_repository::AccountsRepository,
     },
 };
+use crate::domain::errors::base_error::BaseError;
 
 pub struct AddCreditsCmdHandler {
-    user_credits_repository: Mutex<Box<dyn UserCreditsRepository>>,
+    accounts_repository: Mutex<Box<dyn AccountsRepository>>,
 }
 
 impl AddCreditsCmdHandler {
-    pub fn new(user_credits_repository: Mutex<Box<dyn UserCreditsRepository>>) -> Self {
+    pub fn new(accounts_repository: Mutex<Box<dyn AccountsRepository>>) -> Self {
         Self {
-            user_credits_repository,
+            accounts_repository,
         }
     }
 
-    pub async fn execute(&self, add_credits_cmd: AddCreditsCmd) -> Result<(), ApiError> {
-        let user_credits_repository_guard = self.user_credits_repository.lock().await;
+    pub async fn execute(&self, add_credits_cmd: AddCreditsCmd) -> Result<(), BaseError> {
+        let accounts_repository_guard = self.accounts_repository.lock().await;
 
-        user_credits_repository_guard
+        accounts_repository_guard
             .add_credits(add_credits_cmd.user, add_credits_cmd.amount)
             .await?;
 

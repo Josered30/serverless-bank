@@ -8,27 +8,24 @@ use crate::domain::{
     ports::event_repository::EventRepository,
 };
 
-pub struct TransactionRepository {
-    transaction_table_name: String,
+pub struct DynTransactionRepository {
+    transactions_table_name: String,
     dynamodb_client: Arc<aws_sdk_dynamodb::Client>,
 }
 
-impl TransactionRepository {
+impl DynTransactionRepository {
     pub fn new(dynamodb_client: Arc<aws_sdk_dynamodb::Client>) -> Self {
-        let transaction_table_name = match env::var("TRANSACTION_EVENT_TABLE_NAME") {
-            Ok(var) => var,
-            Err(_) => "TABLE_NAME".to_owned(),
-        };
-
+        let transactions_table_name =
+            env::var("TRANSACTIONS_TABLE_NAME").unwrap_or_else(|_| "TABLE_NAME".to_owned());
         Self {
             dynamodb_client,
-            transaction_table_name,
+            transactions_table_name,
         }
     }
 }
 
 #[async_trait]
-impl EventRepository<Transaction> for TransactionRepository {
+impl EventRepository<Transaction> for DynTransactionRepository {
     async fn save_event(&self, transaction: Transaction) -> Result<(), RepositoryError> {
         let mut item = HashMap::<String, AttributeValue>::new();
 
@@ -45,6 +42,11 @@ impl EventRepository<Transaction> for TransactionRepository {
         );
 
         item.insert(
+            "time".to_string(),
+            AttributeValue::N(transaction.time.to_string()),
+        );
+
+        item.insert(
             "amount".to_string(),
             AttributeValue::N(transaction.amount.to_string()),
         );
@@ -57,7 +59,7 @@ impl EventRepository<Transaction> for TransactionRepository {
         let result = match self
             .dynamodb_client
             .put_item()
-            .table_name(&self.transaction_table_name)
+            .table_name(&self.transactions_table_name)
             .set_item(Some(item))
             .send()
             .await
@@ -76,7 +78,7 @@ impl EventRepository<Transaction> for TransactionRepository {
         let query_output = self
             .dynamodb_client
             .query()
-            .table_name(&self.transaction_table_name)
+            .table_name(&self.transactions_table_name)
             .expression_attribute_names("#source", "source")
             .expression_attribute_values(":source", AttributeValue::S(source.clone()))
             .key_condition_expression("#source = :source")
@@ -99,7 +101,7 @@ impl EventRepository<Transaction> for TransactionRepository {
             return Ok(Vec::new());
         };
 
-        let result: Vec<Transaction> = items
+        let transactions: Vec<Transaction> = items
             .into_iter()
             .map(|item| {
                 Transaction::new(
@@ -109,6 +111,12 @@ impl EventRepository<Transaction> for TransactionRepository {
                         .as_n()
                         .unwrap()
                         .parse::<i32>()
+                        .unwrap(),
+                    item.get("time")
+                        .unwrap()
+                        .as_n()
+                        .unwrap()
+                        .parse::<i64>()
                         .unwrap(),
                     item.get("user_id").unwrap().as_s().unwrap().to_string(),
                     item.get("amount")
@@ -122,6 +130,6 @@ impl EventRepository<Transaction> for TransactionRepository {
             })
             .collect();
 
-        return Ok(result);
+        return Ok(transactions);
     }
 }

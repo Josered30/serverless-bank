@@ -5,40 +5,37 @@ use aws_sdk_dynamodb::types::AttributeValue;
 
 use crate::domain::{
     errors::repository_error::RepositoryError,
-    ports::user_credits_repository::UserCreditsRepository,
+    ports::accounts_repository::AccountsRepository,
 };
+use crate::domain::model::account::Account;
 
-pub struct DynUserCreditsRepository {
-    user_credits_table_name: String,
+pub struct DynAccountsRepository {
+    accounts_table_name: String,
     dynamodb_client: Arc<aws_sdk_dynamodb::Client>,
 }
 
-impl DynUserCreditsRepository {
+impl DynAccountsRepository {
     pub fn new(dynamodb_client: Arc<aws_sdk_dynamodb::Client>) -> Self {
-        let user_credits_table_name = match env::var("USER_CREDITS_TABLE_NAME") {
-            Ok(var) => var,
-            Err(_) => "TABLE_NAME".to_owned(),
-        };
-
+        let accounts_table_name = env::var("ACCOUNTS_TABLE_NAME").unwrap_or_else(|_| "TABLE_NAME".to_owned());
         Self {
             dynamodb_client,
-            user_credits_table_name,
+            accounts_table_name,
         }
     }
 }
 
 #[async_trait]
-impl UserCreditsRepository for DynUserCreditsRepository {
-    async fn save_user_credits(&self, user: String, amount: f64) -> Result<(), RepositoryError> {
+impl AccountsRepository for DynAccountsRepository {
+    async fn save_account(&self, account: Account) -> Result<(), RepositoryError> {
         let mut item = HashMap::<String, AttributeValue>::new();
 
-        item.insert("user".to_string(), AttributeValue::S(user));
-        item.insert("amount".to_string(), AttributeValue::N(amount.to_string()));
+        item.insert("user".to_string(), AttributeValue::S(account.user_id));
+        item.insert("amount".to_string(), AttributeValue::N(account.amount.to_string()));
 
         let result = match self
             .dynamodb_client
             .put_item()
-            .table_name(self.user_credits_table_name.to_string())
+            .table_name(self.accounts_table_name.to_string())
             .set_item(Some(item))
             .send()
             .await

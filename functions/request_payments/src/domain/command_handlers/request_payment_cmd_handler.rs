@@ -28,10 +28,12 @@ impl RequestPaymentCmdHandler {
     ) -> Result<RequestPaymentCmdHandlerOutput, Box<dyn Error>> {
         let id = 1;
         let source = Uuid::new_v4().to_string();
+        let time = chrono::Utc::now().timestamp_millis();
 
         let transaction = Transaction::new(
             source.clone(),
             id,
+            time,
             request_payment_cmd.user_id,
             request_payment_cmd.amount,
             EventType::RequestPayment.to_string(),

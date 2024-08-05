@@ -9,20 +9,16 @@ use crate::domain::{
 };
 
 pub struct DynUserRepository {
-    user_table_name: String,
+    users_table_name: String,
     dynamodb_client: Arc<aws_sdk_dynamodb::Client>,
 }
 
 impl DynUserRepository {
     pub fn new(dynamodb_client: Arc<aws_sdk_dynamodb::Client>) -> Self {
-        let user_table_name = match env::var("USER_TABLE_NAME") {
-            Ok(var) => var,
-            Err(_) => "TABLE_NAME".to_owned(),
-        };
-
+        let users_table_name = env::var("USERS_TABLE_NAME").unwrap_or_else(|_| "TABLE_NAME".to_owned());
         Self {
             dynamodb_client,
-            user_table_name,
+            users_table_name,
         }
     }
 }
@@ -40,7 +36,7 @@ impl UserRepository for DynUserRepository {
         let result = match self
             .dynamodb_client
             .put_item()
-            .table_name(self.user_table_name.to_string())
+            .table_name(self.users_table_name.to_string())
             .set_item(Some(item))
             .send()
             .await

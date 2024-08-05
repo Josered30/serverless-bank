@@ -8,13 +8,14 @@ Globals:
     MemorySize: 128
 
 Parameters:
-  TransactionEventsTableArn:
+  TransactionsTableArn:
     Type: String
-  UserCreditsTableArn:
+  TransactionsTableStreamArn:
+    Type: String
+  AccountsTableArn:
     Type: String
   UsersTableArn:
     Type: String
-
   
 Resources:
   BankApi:
@@ -44,7 +45,7 @@ Resources:
         - arm64
       Environment:
         Variables:
-          TRANSACTION_EVENT_TABLE_NAME: !Ref TransactionEventsTableArn
+          TRANSACTIONS_TABLE_NAME: !Ref TransactionsTableArn
 
   RequestPaymentFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
@@ -60,7 +61,7 @@ Resources:
         - arm64
       Environment:
         Variables:
-          TRANSACTION_EVENT_TABLE_NAME: !Ref TransactionEventsTableArn
+          TRANSACTIONS_TABLE_NAME: !Ref TransactionsTableArn
 
   AddCreditsFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
@@ -76,14 +77,17 @@ Resources:
         - arm64
       Environment:
         Variables:
-          USER_CREDITS_TABLE_NAME: !Ref UserCreditsTableArn
+          ACCOUNTS_TABLE_NAME: !Ref AccountsTableArn
       Events:
-        ApiEvent:
-          Type: Api
+        DynamoDBEvent:
+          Type: DynamoDB
           Properties:
-            Method: post
-            Path: /credits
-            RestApiId: !Ref BankApi
+            Stream: !Ref TransactionsTableStreamArn
+            StartingPosition: LATEST
+            BatchSize: 10
+            Enabled: true
+            MaximumBatchingWindowInSeconds: 10
+            MaximumRetryAttempts: 2
 
   CreateUserFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
@@ -99,8 +103,8 @@ Resources:
         - arm64
       Environment:
         Variables:
-          USER_TABLE_NAME: !Ref UsersTableArn
-          USER_CREDITS_TABLE_NAME: !Ref UserCreditsTableArn
+          USERS_TABLE_NAME: !Ref UsersTableArn
+          ACCOUNTS_TABLE_NAME: !Ref AccountsTableArn
       Events:
         ApiEvent:
           Type: Api
@@ -193,6 +197,18 @@ Resources:
             Action:
               - "sts:AssumeRole"
       Path: /
+      Policies:
+        - PolicyName: AccountsDynamoDBStream
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "dynamodb:GetRecords"
+                  - "dynamodb:DescribeStream"
+                  - "dynamodb:GetShardIterator"
+                  - "dynamodb:ListStreams"
+                Resource: !Ref TransactionsTableStreamArn
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
 

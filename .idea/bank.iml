@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="EMPTY_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/functions/add_credits/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/functions/create_user/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/functions/execute_payments/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/functions/request_payments/src" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/functions/add_credits/target" />
+      <excludeFolder url="file://$MODULE_DIR$/functions/create_user/target" />
+      <excludeFolder url="file://$MODULE_DIR$/functions/execute_payments/target" />
+      <excludeFolder url="file://$MODULE_DIR$/functions/request_payments/target" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>

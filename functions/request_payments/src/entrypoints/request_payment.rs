@@ -5,7 +5,7 @@ use lambda_runtime::{Error, LambdaEvent};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    adapters::repositories::transaction_repository::TransactionRepository,
+    adapters::repositories::dyn_transaction_repository::DynTransactionRepository,
     domain::{
         command_handlers::request_payment_cmd_handler::RequestPaymentCmdHandler,
         commands::request_payment_cmd::RequestPaymentCmd,
@@ -38,7 +38,7 @@ pub async fn request_payment(
     let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
     let dynamodb_client = Arc::new(aws_sdk_dynamodb::Client::new(&config));
 
-    let transaction_repository = Box::new(TransactionRepository::new(dynamodb_client.clone()));
+    let transaction_repository = Box::new(DynTransactionRepository::new(dynamodb_client.clone()));
     let execute_payment_cmd_handler = RequestPaymentCmdHandler::new(transaction_repository);
 
     let result = execute_payment_cmd_handler

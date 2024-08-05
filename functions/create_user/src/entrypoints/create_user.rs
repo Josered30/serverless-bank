@@ -8,12 +8,12 @@ use tokio::sync::Mutex;
 
 use crate::{
     adapters::repositories::{
-        user_credits_repository::DynUserCreditsRepository, user_repository::DynUserRepository,
+        dyn_accounts_repository::DynAccountsRepository, dyn_user_repository::DynUserRepository,
     },
     domain::{
         command_handlers::create_user_cmd_handler::CreateUserCmdHandler,
         commands::create_user_cmd::CreateUserCmd,
-        ports::{user_credits_repository::UserCreditsRepository, user_repository::UserRepository},
+        ports::{accounts_repository::AccountsRepository, user_repository::UserRepository},
     },
 };
 
@@ -60,11 +60,11 @@ pub async fn create_user(request: Request) -> Result<Response<Body>, Error> {
     let dynamodb_client = Arc::new(aws_sdk_dynamodb::Client::new(&config));
 
     let user_repository = Box::new(DynUserRepository::new(dynamodb_client.clone()));
-    let user_credits_repository = Box::new(DynUserCreditsRepository::new(dynamodb_client.clone()));
+    let user_credits_repository = Box::new(DynAccountsRepository::new(dynamodb_client.clone()));
 
     let create_user_cmd_handler = CreateUserCmdHandler::new(
         Mutex::new(user_repository as Box<dyn UserRepository>),
-        Mutex::new(user_credits_repository as Box<dyn UserCreditsRepository>),
+        Mutex::new(user_credits_repository as Box<dyn AccountsRepository>),
     );
 
     let result = create_user_cmd_handler.execute(create_user_cmd).await;
