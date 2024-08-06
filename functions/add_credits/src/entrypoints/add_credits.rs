@@ -44,7 +44,7 @@ pub async fn add_credits(event: LambdaEvent<Event>) -> Result<(), Error> {
         .into_iter()
         .filter(|record| !record.change.new_image.is_empty())
         .map(|record| {
-            tracing::info!("Record: {:?}", record);
+            tracing::debug!("Record: {:?}", record);
             let transaction: DynamoDBTransaction = from_item(record.change.new_image).unwrap();
             return transaction;
         })
