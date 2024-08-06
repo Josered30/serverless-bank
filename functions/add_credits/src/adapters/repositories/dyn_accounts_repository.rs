@@ -5,35 +5,31 @@ use aws_sdk_dynamodb::types::AttributeValue;
 
 use crate::domain::{
     errors::repository_error::RepositoryError,
-    ports::user_credits_repository::UserCreditsRepository,
+    ports::accounts_repository::AccountsRepository,
 };
 
-pub struct DynUserCreditsRepository {
-    user_credits_table_name: String,
+pub struct DynAccountsRepository {
+    accounts_table_name: String,
     dynamodb_client: Arc<aws_sdk_dynamodb::Client>,
 }
 
-impl DynUserCreditsRepository {
+impl DynAccountsRepository {
     pub fn new(dynamodb_client: Arc<aws_sdk_dynamodb::Client>) -> Self {
-        let user_credits_table_name = match env::var("USER_CREDITS_TABLE_NAME") {
-            Ok(var) => var,
-            Err(_) => "TABLE_NAME".to_owned(),
-        };
-
+        let accounts_table_name = env::var("ACCOUNTS_TABLE_NAME").unwrap_or_else(|_| "TABLE_NAME".to_owned());
         Self {
             dynamodb_client,
-            user_credits_table_name,
+            accounts_table_name,
         }
     }
 }
 
 #[async_trait]
-impl UserCreditsRepository for DynUserCreditsRepository {
+impl AccountsRepository for DynAccountsRepository {
     async fn add_credits(&self, user: String, amount: f64) -> Result<(), RepositoryError> {
         let result = match self
             .dynamodb_client
             .update_item()
-            .table_name(self.user_credits_table_name.to_string())
+            .table_name(self.accounts_table_name.to_string())
             .key("user", AttributeValue::S(user))
             .update_expression("ADD #amount :amount")
             .expression_attribute_values(":amount", AttributeValue::N(amount.to_string()))

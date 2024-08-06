@@ -42,29 +42,6 @@ paths:
                 Fn::GetAtt: [CreateUserFunction, Arn]
         type: "aws_proxy"
 
-  /credits:
-    post:
-      summary: Post method for add credits to user
-      tags:
-        - credits
-      requestBody:
-        $ref: "#/components/requestBodies/AddCreditsRequest"
-      responses:
-        200:
-          $ref: "#/components/responses/AddCreditsResponse"
-        400:
-          $ref: "#/components/responses/ApiError"
-        500:
-          $ref: "#/components/responses/ApiError"
-      x-amazon-apigateway-integration:
-        httpMethod: "POST"
-        uri:
-          Fn::Sub:
-            - "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AddCreditsFunctionArn}/invocations"
-            - AddCreditsFunctionArn:
-                Fn::GetAtt: [AddCreditsFunction, Arn]
-        type: "aws_proxy"
-
   /payments:
     post:
       summary: Post method for execute payments

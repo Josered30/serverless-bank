@@ -8,11 +8,13 @@ Parameters:
     Type: String
   RequestPaymentFunctionArn:
     Type: String
-  TransactionEventsTableArn:
+  TransactionsTableArn:
     Type: String
-  UserCreditsTableArn:
+  TransactionsTableStreamArn:
     Type: String
-  UserTableArn:
+  AccountsTableArn:
+    Type: String
+  UsersTableArn:
     Type: String
   ExecutePaymentLambdaRole:
     Type: String
@@ -49,24 +51,24 @@ Resources:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
-            Action: "dynamodb:PutItem"
-            Resource: !Ref TransactionEventsTableArn
-          - Effect: Allow
             Action: 
               - "dynamodb:GetItem"
               - "dynamodb:PutItem"
-            Resource: !Ref UserTableArn
+            Resource: !Ref UsersTableArn
           - Effect: Allow
-            Action: "dynamodb:Query"
+            Action:
+              - "dynamodb:Query"
+              - "dynamodb:PutItem"
             Resource:
-              - !Ref TransactionEventsTableArn
-              - !Sub "${TransactionEventsTableArn}/index/*"
+              - !Ref TransactionsTableArn
+              - !Sub "${TransactionsTableArn}/index/*"
           - Effect: Allow
             Action: 
               - "dynamodb:GetItem"
               - "dynamodb:UpdateItem"
               - "dynamodb:PutItem"
-            Resource: !Ref UserCreditsTableArn
+            Resource: 
+              - !Ref AccountsTableArn
       Roles:
         - !Ref ExecutePaymentLambdaRole
         - !Ref RequestPaymentLambdaRole

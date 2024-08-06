@@ -1,1 +1,1 @@
-pub mod user_credits_repository; 
+pub mod dyn_accounts_repository;

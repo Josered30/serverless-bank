@@ -1,7 +1,5 @@
 use std::error::Error;
 
-use uuid::Uuid;
-
 use crate::domain::{
     commands::execute_payment_cmd::ExecutePaymentCmd,
     errors::command_handler_error::CommandHandlerError,
@@ -29,9 +27,6 @@ impl ExecutePaymentCmdHandler {
         &self,
         execute_payment_cmd: ExecutePaymentCmd,
     ) -> Result<ExecutePaymentCmdHandlerOutput, Box<dyn Error>> {
-        let id = 1;
-        let source = Uuid::new_v4().to_string();
-
         let last_transactions = self
             .transaction_repository
             .get_events(execute_payment_cmd.source)
@@ -43,9 +38,14 @@ impl ExecutePaymentCmdHandler {
             ))?;
         };
 
+        let id = 1;
+        let time = chrono::Utc::now().timestamp_millis();
+        let source = last_transaction.source.clone();
+
         let transaction = Transaction::new(
             source.clone(),
             last_transaction.id + 1,
+            time,
             last_transaction.user_id.to_string(),
             last_transaction.amount,
             EventType::ExecutePayment.to_string(),

@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  SAM Template for Bank app
+  SAM Template for Bank App
 
 Resources:
   DynamoDB:
@@ -13,8 +13,9 @@ Resources:
     Properties:
       Location: cloudformation/functions.yaml
       Parameters:
-        TransactionEventsTableArn: !GetAtt DynamoDB.Outputs.TransactionEventsTableArn
-        UserCreditsTableArn: !GetAtt DynamoDB.Outputs.UserCreditsTableArn
+        TransactionsTableArn: !GetAtt DynamoDB.Outputs.TransactionsTableArn
+        TransactionsTableStreamArn: !GetAtt DynamoDB.Outputs.TransactionsTableStreamArn
+        AccountsTableArn: !GetAtt DynamoDB.Outputs.AccountsTableArn
         UsersTableArn: !GetAtt DynamoDB.Outputs.UsersTableArn
   Policies:
     Type: AWS::Serverless::Application
@@ -30,8 +31,7 @@ Resources:
         CreateUserLambdaRole: !GetAtt Functions.Outputs.CreateUserLambdaRole
         ExecuteTransactionStfRole: !GetAtt Functions.Outputs.ExecuteTransactionStfRole
         BankApiRole: !GetAtt Functions.Outputs.BankApiRole
-        TransactionEventsTableArn: !GetAtt DynamoDB.Outputs.TransactionEventsTableArn
-        UserCreditsTableArn: !GetAtt DynamoDB.Outputs.UserCreditsTableArn
-        UserTableArn: !GetAtt DynamoDB.Outputs.UsersTableArn
-    
-             
+        TransactionsTableArn: !GetAtt DynamoDB.Outputs.TransactionsTableArn
+        TransactionsTableStreamArn: !GetAtt DynamoDB.Outputs.TransactionsTableStreamArn
+        AccountsTableArn: !GetAtt DynamoDB.Outputs.AccountsTableArn
+        UsersTableArn: !GetAtt DynamoDB.Outputs.UsersTableArn
